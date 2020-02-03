@@ -3,6 +3,7 @@ package edu.temple.chatapp;
 import android.content.Intent;
 import android.os.IBinder;
 
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.rule.ServiceTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
