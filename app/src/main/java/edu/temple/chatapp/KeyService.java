@@ -5,15 +5,22 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Base64;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStreamWriter;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
 
 public class KeyService extends Service {
 
@@ -23,16 +30,16 @@ public class KeyService extends Service {
     private KeyPair keys;
     private Boolean new_keypair = true;
 
-    IBinder KeyBinder = new KeyBinder();
+    IBinder keyBinder = new KeyBinder();
 
     public KeyService() {
-        retrieveSavedPreferences();
+
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        // TODO: Return the communication channel to the service.
-        throw new UnsupportedOperationException("Not yet implemented");
+        retrieveSavedPreferences();
+        return keyBinder;
     }
 
     public class KeyBinder extends Binder {
@@ -41,13 +48,97 @@ public class KeyService extends Service {
         }
     }
 
+    /**
+     * create a keypair or retrieve one from storage
+     *
+     * @return KeyPair
+     */
     public KeyPair getMyKeyPair(){
 
-        retrieveKeyPair();
+        File file = new File(getFilesDir(),KEYPAIR_FILENAME);
+
+        try {
+
+            if( file.exists() && !new_keypair ) {
+                FileInputStream fis = new FileInputStream(file);
+                ObjectInputStream ois = new ObjectInputStream(fis);
+
+                keys = (KeyPair) ois.readObject();
+                ois.close();
+                fis.close();
+            }else{
+                createKeyPair();
+                saveKeyPair();
+            }
+
+        }catch(Exception e){
+            e.printStackTrace();
+        }
 
         return keys;
     }
 
+    /**
+     * Store partner public key
+     *
+     * @param partnerName String
+     * @param publicKey String
+     */
+    public void storePublicKey (String partnerName, String publicKey){
+        File file = new File(getFilesDir(),partnerName + ".key");
+        try {
+            FileOutputStream fos = new FileOutputStream(file);
+            OutputStreamWriter osw = new OutputStreamWriter( fos );
+            osw.write( publicKey );
+            osw.close();
+            fos.close();
+
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Get partner public key from storage
+     *
+     * @param partnerName String
+     * @return RSAPublicKey
+     */
+    public RSAPublicKey getPublicKey(String partnerName){
+        File file = new File(getFilesDir(),partnerName + ".key");
+        RSAPublicKey public_key = null;
+
+        try{
+
+
+            StringBuilder text = new StringBuilder();
+            if( file.exists() ) {
+                FileInputStream fis = new FileInputStream(file);
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+                while( (line = br.readLine()) != null ) {
+                    text.append(line);
+                }
+                br.close();
+                fis.close();
+
+                byte[] key = Base64.decode( text.toString(),Base64.DEFAULT);
+                X509EncodedKeySpec pub_key_spec = new X509EncodedKeySpec( key );
+                KeyFactory fact = KeyFactory.getInstance("RSA");
+                public_key = (RSAPublicKey) fact.generatePublic( pub_key_spec );
+            }
+
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+
+        return public_key;
+    }
+
+    /**
+     * Create new keypair
+     *
+     */
     private void createKeyPair(){
         KeyPairGenerator kpg;
 
@@ -59,6 +150,10 @@ public class KeyService extends Service {
         }
     }
 
+    /**
+     * Store generated keypair
+     *
+     */
     private void saveKeyPair(){
         File file = new File(getFilesDir(),KEYPAIR_FILENAME);
         try {
@@ -71,28 +166,6 @@ public class KeyService extends Service {
 
             new_keypair = false;
             savePreferences();
-
-        }catch(Exception e){
-            e.printStackTrace();
-        }
-    }
-
-    private void retrieveKeyPair(){
-        File file = new File(getFilesDir(),KEYPAIR_FILENAME);
-
-        try {
-
-            if( file.exists() ) {
-                FileInputStream fis = new FileInputStream(file);
-                ObjectInputStream ois = new ObjectInputStream(fis);
-
-                keys = (KeyPair) ois.readObject();
-                ois.close();
-                fis.close();
-            }else{
-                createKeyPair();
-                saveKeyPair();
-            }
 
         }catch(Exception e){
             e.printStackTrace();
