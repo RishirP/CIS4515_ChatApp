@@ -58,7 +58,6 @@ public class KeyService extends Service {
         File file = new File(getFilesDir(),KEYPAIR_FILENAME);
 
         try {
-
             if( file.exists() && !new_keypair ) {
                 FileInputStream fis = new FileInputStream(file);
                 ObjectInputStream ois = new ObjectInputStream(fis);
@@ -87,10 +86,16 @@ public class KeyService extends Service {
     public void storePublicKey (String partnerName, String publicKey){
         File file = new File(getFilesDir(),partnerName + ".key");
         try {
+            byte[] key = Base64.decode( publicKey,Base64.DEFAULT);
+            X509EncodedKeySpec pub_key_spec = new X509EncodedKeySpec( key );
+            KeyFactory fact = KeyFactory.getInstance("RSA");
+            RSAPublicKey public_key = (RSAPublicKey) fact.generatePublic( pub_key_spec );
+
             FileOutputStream fos = new FileOutputStream(file);
-            OutputStreamWriter osw = new OutputStreamWriter( fos );
-            osw.write( publicKey );
-            osw.close();
+            ObjectOutputStream oos = new ObjectOutputStream( fos );
+            oos.writeObject( public_key );
+            oos.flush();
+            oos.close();
             fos.close();
 
         }catch(Exception e){
@@ -109,23 +114,13 @@ public class KeyService extends Service {
         RSAPublicKey public_key = null;
 
         try{
-
-
-            StringBuilder text = new StringBuilder();
             if( file.exists() ) {
                 FileInputStream fis = new FileInputStream(file);
-                BufferedReader br = new BufferedReader(new FileReader(file));
-                String line;
-                while( (line = br.readLine()) != null ) {
-                    text.append(line);
-                }
-                br.close();
-                fis.close();
+                ObjectInputStream ois = new ObjectInputStream(fis);
 
-                byte[] key = Base64.decode( text.toString(),Base64.DEFAULT);
-                X509EncodedKeySpec pub_key_spec = new X509EncodedKeySpec( key );
-                KeyFactory fact = KeyFactory.getInstance("RSA");
-                public_key = (RSAPublicKey) fact.generatePublic( pub_key_spec );
+                public_key = (RSAPublicKey) ois.readObject();
+                ois.close();
+                fis.close();
             }
 
         }catch(Exception e){
